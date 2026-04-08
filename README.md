@@ -1,11 +1,11 @@
-# Simple File Zipper (Windows)
+# Simple File Zipper (Windows, Python)
 
-A clean desktop app for zipping files quickly.
+A clean desktop app for zipping files quickly, built with Python.
 
 ## What the app does
 
 - On first startup, asks the user to choose an **output folder** for finished ZIP files.
-- Main screen has a clear **drag-and-drop area** for files.
+- Main screen provides quick file selection for files to include in the ZIP.
 - User clicks **Begin Zip** to create a ZIP file.
 - ZIP file is saved to the selected output folder.
 
@@ -13,30 +13,26 @@ A clean desktop app for zipping files quickly.
 
 1. Launch the app.
 2. Select your output folder (first run only, or click **Change Folder** any time).
-3. Drag and drop files into the **Drop files here** area.
+3. Click **Add Files** and choose files to include.
 4. Click **Begin Zip**.
 5. App shows status and a success dialog with the ZIP path.
 
-## Build from source
+## Build from source (Python)
 
 Prerequisites:
 
 - Windows 10/11
-- .NET 8 SDK
+- Python 3.11+
 
-From repo root:
+Run directly:
 
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+python app.py
 ```
-
-Published output:
-
-`bin/Release/net8.0-windows/win-x64/publish/SimpleFileZipper.exe`
 
 ## Build a full installer (recommended for distribution)
 
-This repo now includes an **Inno Setup** installer project that creates a single `.exe` installer with:
+This repo includes an **Inno Setup** installer project and a **Python build script** that creates a single `.exe` installer with:
 
 - Program Files installation
 - Start menu shortcut
@@ -45,30 +41,26 @@ This repo now includes an **Inno Setup** installer project that creates a single
 
 ### One-time prerequisites
 
-1. Install [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-2. Install [Inno Setup](https://jrsoftware.org/isinfo.php)
-3. Ensure `ISCC.exe` is on your system `PATH`
+1. Install Python 3.11+
+2. Install build dependency:
+
+   ```bash
+   pip install -r requirements-build.txt
+   ```
+
+3. Install [Inno Setup](https://jrsoftware.org/isinfo.php)
+4. Ensure `ISCC.exe` is on your system `PATH`
 
 ### Build command
 
-From the repo root in PowerShell:
+From the repo root:
 
-```powershell
-.\scripts\build-installer.ps1
+```bash
+python scripts/build-installer.py
 ```
 
 Installer output:
 
-`dist/SimpleFileZipper-Setup-1.0.0.exe`
+`dist/SimpleFileZipper-Setup-1.1.0.exe`
 
 You can share that installer file directly with users.
-
-## Alternative: portable build (no installer)
-
-If you only need a portable executable:
-
-```bash
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
-```
-
-Share the `SimpleFileZipper.exe` from the publish folder.
