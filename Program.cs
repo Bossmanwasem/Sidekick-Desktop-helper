@@ -1,301 +1,409 @@
-using System.Diagnostics;
-using System.Text;
+using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows.Forms;
 
 namespace SidekickHelper;
 
 internal static class Program
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    [STAThread]
+    private static void Main()
     {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false
-    };
+        ApplicationConfiguration.Initialize();
+        Application.Run(new ZipperForm());
+    }
+}
 
-    private static readonly string AppDataRoot = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "SidekickHelper");
+internal sealed class ZipperForm : Form
+{
+    private readonly AppConfigStore _configStore;
+    private readonly Label _outputFolderValueLabel;
+    private readonly ListBox _filesListBox;
+    private readonly Label _statusLabel;
+    private readonly Panel _dropPanel;
 
-    private static readonly string ConfigPath = Path.Combine(AppDataRoot, "config.json");
+    private string _outputFolder = string.Empty;
+    private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
 
-    private static AppConfig _config = AppConfig.Load(ConfigPath);
-
-    private static int Main()
+    public ZipperForm()
     {
-        Directory.CreateDirectory(AppDataRoot);
+        Text = "Simple File Zipper";
+        StartPosition = FormStartPosition.CenterScreen;
+        MinimumSize = new Size(760, 540);
+        Size = new Size(900, 640);
 
-        try
-        {
-            while (ReadMessage() is { } request)
-            {
-                HandleRequest(request);
-            }
-        }
-        catch (Exception ex)
-        {
-            Send(new ErrorResponse("UnhandledError", ex.Message));
-            return 1;
-        }
+        _configStore = new AppConfigStore();
 
-        return 0;
+        var headerLabel = new Label
+        {
+            Text = "Simple File Zipper",
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 18, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 4)
+        };
+
+        var instructionsLabel = new Label
+        {
+            Text = "1) Drop files into the area below.  2) Click 'Begin Zip'.  3) Your zip is saved to the output folder.",
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 10, FontStyle.Regular),
+            Margin = new Padding(0, 0, 0, 12)
+        };
+
+        var outputFolderTitleLabel = new Label
+        {
+            Text = "Output folder:",
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
+            Margin = new Padding(0, 0, 8, 0)
+        };
+
+        _outputFolderValueLabel = new Label
+        {
+            Text = "Not set",
+            AutoSize = true,
+            MaximumSize = new Size(620, 0),
+            Font = new Font(Font.FontFamily, 10, FontStyle.Regular)
+        };
+
+        var changeFolderButton = new Button
+        {
+            Text = "Change Folder",
+            AutoSize = true,
+            Padding = new Padding(10, 6, 10, 6)
+        };
+        changeFolderButton.Click += (_, _) => PromptForOutputFolder(forcePrompt: true);
+
+        var folderRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Margin = new Padding(0, 0, 0, 16)
+        };
+        folderRow.Controls.Add(outputFolderTitleLabel);
+        folderRow.Controls.Add(_outputFolderValueLabel);
+        folderRow.Controls.Add(changeFolderButton);
+
+        _dropPanel = new Panel
+        {
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.White,
+            Height = 180,
+            Dock = DockStyle.Top,
+            AllowDrop = true,
+            Margin = new Padding(0, 0, 0, 12)
+        };
+        _dropPanel.DragEnter += DropPanelOnDragEnter;
+        _dropPanel.DragDrop += DropPanelOnDragDrop;
+        _dropPanel.DragLeave += (_, _) => _dropPanel.BackColor = Color.White;
+
+        var dropLabel = new Label
+        {
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font(Font.FontFamily, 12, FontStyle.Bold),
+            Text = "Drop files here",
+            ForeColor = Color.FromArgb(40, 40, 40)
+        };
+        _dropPanel.Controls.Add(dropLabel);
+
+        var selectedFilesLabel = new Label
+        {
+            Text = "Files to Zip",
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 6)
+        };
+
+        _filesListBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            HorizontalScrollbar = true,
+            IntegralHeight = false,
+            Font = new Font(FontFamily.GenericSansSerif, 9.5f)
+        };
+
+        var clearFilesButton = new Button
+        {
+            Text = "Clear Files",
+            AutoSize = true,
+            Padding = new Padding(10, 6, 10, 6)
+        };
+        clearFilesButton.Click += (_, _) => ClearSelectedFiles();
+
+        var beginZipButton = new Button
+        {
+            Text = "Begin Zip",
+            AutoSize = true,
+            Padding = new Padding(16, 8, 16, 8),
+            Font = new Font(Font.FontFamily, 10, FontStyle.Bold)
+        };
+        beginZipButton.Click += (_, _) => BeginZip();
+
+        _statusLabel = new Label
+        {
+            Text = "Ready",
+            AutoSize = true,
+            Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
+            ForeColor = Color.FromArgb(24, 88, 24)
+        };
+
+        var buttonRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 12, 0, 0)
+        };
+        buttonRow.Controls.Add(beginZipButton);
+        buttonRow.Controls.Add(clearFilesButton);
+
+        var contentLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 8,
+            Padding = new Padding(18),
+            BackColor = Color.FromArgb(247, 249, 252)
+        };
+
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 190));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        contentLayout.Controls.Add(headerLabel, 0, 0);
+        contentLayout.Controls.Add(instructionsLabel, 0, 1);
+        contentLayout.Controls.Add(folderRow, 0, 2);
+        contentLayout.Controls.Add(_dropPanel, 0, 3);
+        contentLayout.Controls.Add(selectedFilesLabel, 0, 4);
+        contentLayout.Controls.Add(_filesListBox, 0, 5);
+        contentLayout.Controls.Add(buttonRow, 0, 6);
+        contentLayout.Controls.Add(_statusLabel, 0, 7);
+
+        Controls.Add(contentLayout);
+
+        Load += (_, _) => PromptForOutputFolder(forcePrompt: false);
     }
 
-    private static void HandleRequest(BaseRequest request)
+    private void DropPanelOnDragEnter(object? sender, DragEventArgs e)
     {
-        switch (request.Type)
+        if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
         {
-            case "ping":
-                Send(new PongResponse("pong"));
-                return;
-            case "initialize":
-                HandleInitialize(request.Payload);
-                return;
-            case "zip_request":
-                HandleZipRequest(request.Payload);
-                return;
-            default:
-                Send(new ErrorResponse("UnknownRequest", $"Unknown request type '{request.Type}'."));
-                return;
+            e.Effect = DragDropEffects.Copy;
+            _dropPanel.BackColor = Color.FromArgb(224, 242, 255);
+            return;
         }
+
+        e.Effect = DragDropEffects.None;
     }
 
-    private static void HandleInitialize(JsonElement payload)
+    private void DropPanelOnDragDrop(object? sender, DragEventArgs e)
     {
-        var init = payload.Deserialize<InitializePayload>(JsonOptions);
-        if (init is null || string.IsNullOrWhiteSpace(init.OutputFolder))
+        _dropPanel.BackColor = Color.White;
+
+        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] droppedItems || droppedItems.Length == 0)
         {
-            Send(new ErrorResponse("InvalidInitialize", "OutputFolder is required for initialize request."));
+            SetStatus("No files were dropped.", isError: true);
             return;
         }
 
-        var outputFolder = ExpandHomePath(init.OutputFolder);
-        Directory.CreateDirectory(outputFolder);
-
-        _config = new AppConfig(outputFolder);
-        _config.Save(ConfigPath);
-
-        Send(new InitializeResponse("initialized", outputFolder));
-    }
-
-    private static void HandleZipRequest(JsonElement payload)
-    {
-        var request = payload.Deserialize<ZipRequestPayload>(JsonOptions);
-        if (request is null)
-        {
-            Send(new ErrorResponse("InvalidZipRequest", "Missing payload for zip request."));
-            return;
-        }
-
-        if (!_config.IsValid())
-        {
-            Send(new ErrorResponse("NotInitialized", "App not initialized. Send initialize request with output folder first."));
-            return;
-        }
-
-        if (request.Files is null || request.Files.Count == 0)
-        {
-            Send(new ErrorResponse("NoFiles", "Zip request must include at least one file."));
-            return;
-        }
-
-        var existingFiles = request.Files
+        var files = droppedItems
             .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (existingFiles.Count == 0)
+        var fileCountBefore = _selectedFiles.Count;
+        foreach (var file in files)
         {
-            Send(new ErrorResponse("NoExistingFiles", "No requested files exist on disk."));
+            _selectedFiles.Add(file);
+        }
+
+        RefreshFilesList();
+
+        var addedCount = _selectedFiles.Count - fileCountBefore;
+        if (addedCount > 0)
+        {
+            SetStatus($"Added {addedCount} file(s).", isError: false);
+        }
+        else
+        {
+            SetStatus("No new files were added.", isError: true);
+        }
+    }
+
+    private void RefreshFilesList()
+    {
+        _filesListBox.BeginUpdate();
+        _filesListBox.Items.Clear();
+
+        foreach (var file in _selectedFiles.OrderBy(file => file, StringComparer.OrdinalIgnoreCase))
+        {
+            _filesListBox.Items.Add(file);
+        }
+
+        _filesListBox.EndUpdate();
+    }
+
+    private void ClearSelectedFiles()
+    {
+        _selectedFiles.Clear();
+        RefreshFilesList();
+        SetStatus("File list cleared.", isError: false);
+    }
+
+    private void PromptForOutputFolder(bool forcePrompt)
+    {
+        var existing = _configStore.Load();
+
+        if (!forcePrompt && existing is not null && Directory.Exists(existing.OutputFolder))
+        {
+            _outputFolder = existing.OutputFolder;
+            _outputFolderValueLabel.Text = _outputFolder;
             return;
         }
 
-        var safeName = SanitizeFileName(request.ZipName);
-        var zipName = string.IsNullOrWhiteSpace(safeName)
-            ? $"sidekick-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip"
-            : safeName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? safeName : $"{safeName}.zip";
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Choose where finished ZIP files should be saved.",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = true,
+            InitialDirectory = Directory.Exists(_outputFolder) ? _outputFolder : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        };
 
-        var outputZipPath = Path.Combine(_config.OutputFolder!, zipName);
+        var result = dialog.ShowDialog(this);
+        if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+        {
+            _outputFolder = dialog.SelectedPath;
+            Directory.CreateDirectory(_outputFolder);
+            _configStore.Save(new AppConfig(_outputFolder));
+            _outputFolderValueLabel.Text = _outputFolder;
+            SetStatus("Output folder saved.", isError: false);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_outputFolder))
+        {
+            _outputFolderValueLabel.Text = "Not set";
+            SetStatus("Please choose an output folder before zipping.", isError: true);
+        }
+    }
+
+    private void BeginZip()
+    {
+        if (string.IsNullOrWhiteSpace(_outputFolder) || !Directory.Exists(_outputFolder))
+        {
+            PromptForOutputFolder(forcePrompt: true);
+            if (string.IsNullOrWhiteSpace(_outputFolder) || !Directory.Exists(_outputFolder))
+            {
+                SetStatus("Output folder is required.", isError: true);
+                return;
+            }
+        }
+
+        if (_selectedFiles.Count == 0)
+        {
+            SetStatus("Drop at least one file before clicking Begin Zip.", isError: true);
+            return;
+        }
+
+        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var zipPath = Path.Combine(_outputFolder, $"files-{timestamp}.zip");
 
         try
         {
-            ZipUsingPowerShell(existingFiles, outputZipPath);
+            using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+            var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            Send(new ZipCompleteResponse(
-                "zip_complete",
-                outputZipPath,
-                zipName,
-                existingFiles.Count,
-                request.CorrelationId));
+            foreach (var file in _selectedFiles.Where(File.Exists))
+            {
+                var baseName = Path.GetFileName(file);
+                var entryName = BuildUniqueEntryName(baseName, usedEntryNames);
+                archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
+            }
+
+            SetStatus($"Zip created: {zipPath}", isError: false);
+            MessageBox.Show(this, $"Zip complete!\n\nSaved to:\n{zipPath}", "Zip Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
-            Send(new ErrorResponse("ZipFailed", ex.Message, request.CorrelationId));
+            SetStatus($"Zip failed: {ex.Message}", isError: true);
         }
     }
 
-    private static string ExpandHomePath(string value)
+    private static string BuildUniqueEntryName(string desiredName, ISet<string> used)
     {
-        if (value.StartsWith("~"))
+        var name = Path.GetFileNameWithoutExtension(desiredName);
+        var extension = Path.GetExtension(desiredName);
+        var candidate = desiredName;
+        var index = 1;
+
+        while (used.Contains(candidate))
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                value.TrimStart('~').TrimStart('\\', '/'));
+            candidate = $"{name} ({index}){extension}";
+            index++;
         }
 
-        return Path.GetFullPath(value);
+        used.Add(candidate);
+        return candidate;
     }
 
-    private static void ZipUsingPowerShell(IReadOnlyCollection<string> files, string outputZipPath)
+    private void SetStatus(string message, bool isError)
     {
-        var destinationDirectory = Path.GetDirectoryName(outputZipPath) ?? throw new InvalidOperationException("Output folder is invalid.");
-        Directory.CreateDirectory(destinationDirectory);
+        _statusLabel.Text = message;
+        _statusLabel.ForeColor = isError ? Color.FromArgb(160, 22, 22) : Color.FromArgb(24, 88, 24);
+    }
+}
 
-        if (File.Exists(outputZipPath))
-        {
-            File.Delete(outputZipPath);
-        }
+internal sealed record AppConfig(
+    [property: JsonPropertyName("outputFolder")] string OutputFolder);
 
-        var escapedPaths = files.Select(static file => $"'{file.Replace("'", "''")}'");
-        var fileArray = string.Join(',', escapedPaths);
-        var script = $"$ErrorActionPreference='Stop'; Compress-Archive -LiteralPath @({fileArray}) -DestinationPath '{outputZipPath.Replace("'", "''")}' -CompressionLevel Optimal -Force";
+internal sealed class AppConfigStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true
+    };
 
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "powershell.exe",
-                Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{script}\"",
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
+    private readonly string _configPath;
 
-        process.Start();
-        var stdErr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+    public AppConfigStore()
+    {
+        var appDataRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SimpleFileZipper");
 
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"Compress-Archive failed: {stdErr}");
-        }
-
-        if (!File.Exists(outputZipPath))
-        {
-            throw new FileNotFoundException("Zip output was not created.", outputZipPath);
-        }
+        Directory.CreateDirectory(appDataRoot);
+        _configPath = Path.Combine(appDataRoot, "config.json");
     }
 
-    private static string SanitizeFileName(string? value)
+    public AppConfig? Load()
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var builder = new StringBuilder(value.Length);
-
-        foreach (var ch in value)
-        {
-            builder.Append(invalidChars.Contains(ch) ? '_' : ch);
-        }
-
-        return builder.ToString().Trim();
-    }
-
-    private static BaseRequest? ReadMessage()
-    {
-        var stdin = Console.OpenStandardInput();
-        var lengthBuffer = new byte[4];
-
-        var bytesRead = stdin.Read(lengthBuffer, 0, 4);
-        if (bytesRead == 0)
+        if (!File.Exists(_configPath))
         {
             return null;
         }
 
-        if (bytesRead < 4)
-        {
-            throw new InvalidOperationException("Invalid native messaging frame length.");
-        }
-
-        var messageLength = BitConverter.ToInt32(lengthBuffer, 0);
-        if (messageLength <= 0)
-        {
-            throw new InvalidOperationException("Message length must be a positive integer.");
-        }
-
-        var messageBuffer = new byte[messageLength];
-        var offset = 0;
-
-        while (offset < messageLength)
-        {
-            var read = stdin.Read(messageBuffer, offset, messageLength - offset);
-            if (read == 0)
-            {
-                throw new InvalidOperationException("Unexpected end of stream while reading native messaging payload.");
-            }
-
-            offset += read;
-        }
-
-        var json = Encoding.UTF8.GetString(messageBuffer);
-        return JsonSerializer.Deserialize<BaseRequest>(json, JsonOptions);
-    }
-
-    private static void Send<T>(T payload)
-    {
-        var json = JsonSerializer.Serialize(payload, JsonOptions);
-        var messageBytes = Encoding.UTF8.GetBytes(json);
-        var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
-
-        var stdout = Console.OpenStandardOutput();
-        stdout.Write(lengthBytes, 0, lengthBytes.Length);
-        stdout.Write(messageBytes, 0, messageBytes.Length);
-        stdout.Flush();
-    }
-}
-
-internal sealed record BaseRequest(string Type, JsonElement Payload);
-internal sealed record InitializePayload(string OutputFolder);
-internal sealed record ZipRequestPayload(List<string> Files, string? ZipName, string? CorrelationId);
-internal sealed record InitializeResponse(string Type, string OutputFolder);
-internal sealed record ZipCompleteResponse(string Type, string ZipPath, string ZipName, int FileCount, string? CorrelationId);
-internal sealed record PongResponse(string Type);
-internal sealed record ErrorResponse(string Type, string Message, string? CorrelationId = null);
-
-internal sealed record AppConfig(string? OutputFolder)
-{
-    public bool IsValid() => !string.IsNullOrWhiteSpace(OutputFolder);
-
-    public void Save(string path)
-    {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        File.WriteAllText(path, JsonSerializer.Serialize(this));
-    }
-
-    public static AppConfig Load(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return new AppConfig((string?)null);
-        }
-
         try
         {
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig((string?)null);
+            var json = File.ReadAllText(_configPath);
+            return JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
         }
         catch
         {
-            return new AppConfig((string?)null);
+            return null;
         }
+    }
+
+    public void Save(AppConfig config)
+    {
+        var json = JsonSerializer.Serialize(config, JsonOptions);
+        File.WriteAllText(_configPath, json);
     }
 }
