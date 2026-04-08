@@ -1,5 +1,5 @@
 #define AppName "Simple File Zipper"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define AppPublisher "Sidekick"
 #define AppExeName "SimpleFileZipper.exe"
 #define AppId "{{D476B0F0-28D6-4BE8-89E9-56D2DA3EA62D}"
@@ -29,7 +29,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "..\bin\Release\net8.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\dist\SimpleFileZipper.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Simple File Zipper"; Filename: "{app}\{#AppExeName}"
