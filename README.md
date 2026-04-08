@@ -76,6 +76,67 @@ This repo now contains a native messaging desktop helper app for a Chromium exte
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
+## Install (Windows)
+
+### Prerequisites
+
+- Windows 10/11
+- .NET SDK 8.0+ (if building from source)
+- Microsoft Edge extension ID that will connect to this host
+
+### 1) Build the helper
+
+From the repo root:
+
+```bash
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+```
+
+This produces `SidekickHelper.exe` under:
+
+`bin/Release/net8.0-windows/win-x64/publish/`
+
+### 2) Create the native host manifest
+
+Copy `com.sidekick.helper.json.example` to a stable location (for example `C:\ProgramData\Sidekick\com.sidekick.helper.json`) and update:
+
+- `path` to the full path of `SidekickHelper.exe`
+- `allowed_origins` with your actual extension ID
+
+Example:
+
+```json
+{
+  "name": "com.sidekick.helper",
+  "description": "Sidekick Desktop Helper",
+  "path": "C:\\ProgramData\\Sidekick\\SidekickHelper.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://<your-edge-extension-id>/"
+  ]
+}
+```
+
+### 3) Register the host in Windows registry
+
+Run PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-host.ps1 -ManifestPath "C:\ProgramData\Sidekick\com.sidekick.helper.json"
+```
+
+This writes:
+
+`HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.sidekick.helper`
+
+with the default value set to your manifest path.
+
+### 4) Verify
+
+- Open `edge://extensions`, ensure your extension is loaded.
+- Trigger your extension’s native messaging flow.
+- Confirm the helper starts and responds to `ping` / `initialize`.
+
 ## Register as native messaging host (Edge)
 
 1. Build/publish the helper app.
