@@ -76,6 +76,48 @@ This repo now contains a native messaging desktop helper app for a Chromium exte
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
+## Build in Visual Studio
+
+If you prefer Visual Studio over the command line:
+
+1. Open `SidekickHelper.csproj` in Visual Studio 2022.
+2. Set configuration to **Release**.
+3. Right-click the project → **Publish...**
+4. Choose **Folder** as the target.
+5. In publish settings:
+   - **Deployment mode**: `Self-contained`
+   - **Target runtime**: `win-x64`
+   - **File publish options**: enable **Produce single file**
+6. Click **Publish**.
+
+You will get `SidekickHelper.exe` under a publish folder similar to:
+
+`bin\Release\net8.0-windows\win-x64\publish\`
+
+That EXE can be used directly with the native messaging host manifest.
+
+## Create a packaged app (MSIX) in Visual Studio
+
+If you want an installable Windows package (instead of copying EXE + manifest manually), use a Windows Application Packaging Project:
+
+1. In Visual Studio, add a new project to the solution:
+   - **Windows Application Packaging Project** (MSIX).
+2. Target Windows 10/11 and the `x64` architecture.
+3. Add a reference from the packaging project to `SidekickHelper`.
+4. In the packaging project, set package metadata:
+   - Package name / publisher / version
+   - Display name and logo assets
+5. Build the packaging project in **Release**.
+6. Right-click packaging project → **Publish** → **Create App Packages...**
+7. Choose sideloading (unless you have Store distribution) and generate the MSIX.
+
+Important note for native messaging:
+
+- The Edge native host manifest still needs to point to the actual installed EXE path.
+- If install location is versioned, add an install step/script that writes the correct resolved path into `com.sidekick.helper.json` and updates:
+  `HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.sidekick.helper`.
+- In enterprise setups, this is often done by deploying both the MSIX and a small post-install PowerShell script.
+
 ## Install (Windows)
 
 ### Prerequisites
