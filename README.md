@@ -34,29 +34,41 @@ Published output:
 
 `bin/Release/net8.0-windows/win-x64/publish/SimpleFileZipper.exe`
 
-## Install on your PC (easy local install)
+## Build a full installer (recommended for distribution)
 
-If you just want it installed for yourself without MSIX:
+This repo now includes an **Inno Setup** installer project that creates a single `.exe` installer with:
 
-1. Build/publish using the command above.
-2. Create a folder such as:
-   - `C:\Program Files\SimpleFileZipper\`
-3. Copy everything from:
-   - `bin\Release\net8.0-windows\win-x64\publish\`
-   into that install folder.
-4. Create a desktop shortcut:
-   - Right click `SimpleFileZipper.exe` → **Send to** → **Desktop (create shortcut)**.
-5. (Optional) Pin to Start or Taskbar.
+- Program Files installation
+- Start menu shortcut
+- Optional desktop shortcut
+- Uninstaller entry in Windows
 
-That’s it—the app is installed and ready.
+### One-time prerequisites
 
-## Optional: Create an installer package (MSIX)
+1. Install [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+2. Install [Inno Setup](https://jrsoftware.org/isinfo.php)
+3. Ensure `ISCC.exe` is on your system `PATH`
 
-If you want a proper installer UX:
+### Build command
 
-1. Open `SidekickHelper.csproj` in Visual Studio 2022.
-2. Add a **Windows Application Packaging Project**.
-3. Reference this project.
-4. Build in **Release** and publish as MSIX.
+From the repo root in PowerShell:
 
-Use MSIX if you need enterprise-style deployment/signing.
+```powershell
+.\scripts\build-installer.ps1
+```
+
+Installer output:
+
+`dist/SimpleFileZipper-Setup-1.0.0.exe`
+
+You can share that installer file directly with users.
+
+## Alternative: portable build (no installer)
+
+If you only need a portable executable:
+
+```bash
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+```
+
+Share the `SimpleFileZipper.exe` from the publish folder.
