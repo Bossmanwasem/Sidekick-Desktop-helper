@@ -285,17 +285,17 @@ internal sealed record AppConfig(string? OutputFolder)
     {
         if (!File.Exists(path))
         {
-            return new AppConfig(null);
+            return new AppConfig((string?)null);
         }
 
         try
         {
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig(null);
+            return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig((string?)null);
         }
         catch
         {
-            return new AppConfig(null);
+            return new AppConfig((string?)null);
         }
     }
 }
