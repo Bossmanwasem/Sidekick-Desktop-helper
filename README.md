@@ -92,7 +92,7 @@ If you prefer Visual Studio over the command line:
 
 You will get `SidekickHelper.exe` under a publish folder similar to:
 
-`bin\Release\net8.0-windows\win-x64\publish\`
+`bin\Release\net11.0-windows\win-x64\publish\`
 
 That EXE can be used directly with the native messaging host manifest.
 
@@ -123,7 +123,7 @@ Important note for native messaging:
 ### Prerequisites
 
 - Windows 10/11
-- .NET SDK 8.0+ (if building from source)
+- .NET SDK 11.0+ (if building from source)
 - Microsoft Edge extension ID that will connect to this host
 
 ### 1) Build the helper
@@ -136,7 +136,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 This produces `SidekickHelper.exe` under:
 
-`bin/Release/net8.0-windows/win-x64/publish/`
+`bin/Release/net11.0-windows/win-x64/publish/`
 
 ### 2) Create the native host manifest
 
