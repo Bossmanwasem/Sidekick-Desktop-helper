@@ -73,6 +73,7 @@ class SidekickDesktopApp:
         self.drop_folder_var = tk.StringVar(value=self.drop_folder or "Not connected")
         self.final_folder_var = tk.StringVar(value=self.final_folder or "Not connected")
         self.file_count_var = tk.StringVar(value="Files ready to zip: 0")
+        self.zip_status_var = tk.StringVar(value="")
 
         self._apply_theme()
         self._build_ui()
@@ -150,6 +151,7 @@ class SidekickDesktopApp:
         actions = ttk.Frame(root_frame, style="Root.TFrame")
         actions.pack(fill=tk.X)
         ttk.Button(actions, text="Zip & Move Files", style="Primary.TButton", command=self.zip_and_move_files).pack(side=tk.LEFT)
+        ttk.Label(actions, textvariable=self.zip_status_var, style="Field.TLabel").pack(side=tk.LEFT, padx=(12, 0))
 
     def _build_folder_row(self, parent: ttk.Frame, label: str, value_var: tk.StringVar, browse_command) -> None:
         row = ttk.Frame(parent, style="Root.TFrame")
@@ -189,6 +191,7 @@ class SidekickDesktopApp:
         self.file_count_var.set(f"Files ready to zip: {file_count}")
 
     def zip_and_move_files(self) -> None:
+        self.zip_status_var.set("")
         if not self.drop_folder or not Path(self.drop_folder).is_dir():
             messagebox.showerror(APP_NAME, "Please connect a valid Drop folder.")
             return
@@ -209,29 +212,26 @@ class SidekickDesktopApp:
         checkin_files = [path for path in files_to_process if path.suffix.lower() != GRID_USER_EXTENSION]
 
         try:
-            created_archives: list[Path] = []
-            messagebox.showinfo(APP_NAME, "Zipping is in progress. Please wait…")
+            self.zip_status_var.set("Zipping files please wait")
+            self.root.update_idletasks()
 
             if grid_files:
                 grid_zip_path = final_path / GRID_USER_ZIP_NAME
                 self._create_zip(grid_zip_path, grid_files)
-                created_archives.append(grid_zip_path)
 
             if checkin_files:
                 checkin_zip_path = final_path / CHECKIN_ZIP_NAME
                 self._create_zip(checkin_zip_path, checkin_files)
-                created_archives.append(checkin_zip_path)
 
             for file_path in files_to_process:
                 file_path.unlink()
 
             self.refresh_file_count()
-            archive_list = "\n".join(str(path) for path in created_archives)
-            messagebox.showinfo(
-                APP_NAME,
-                f"Finished creating ZIP file(s):\n{archive_list}\n\nYou can now return to the CRM Sidekick Extension.",
+            self.zip_status_var.set(
+                "Finished zipping You can now start your Checkin with the Sidekick extension"
             )
         except OSError as exc:
+            self.zip_status_var.set("")
             messagebox.showerror(APP_NAME, f"Unable to complete zipping.\n\n{exc}")
 
     @staticmethod
