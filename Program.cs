@@ -7,37 +7,44 @@ namespace SidekickHelper;
 
 internal static class Program
 {
+    private const string AppName = "Smartbox Zipper Sidekick";
+
     [STAThread]
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new ZipperForm());
+        Application.Run(new ZipperForm(AppName));
     }
 }
 
 internal sealed class ZipperForm : Form
 {
+    private const string GridUserZipName = "Current Grid User.zip";
+    private const string CheckinZipName = "Current Checkin.zip";
+
     private readonly AppConfigStore _configStore;
     private readonly Label _outputFolderValueLabel;
     private readonly ListBox _filesListBox;
     private readonly Label _statusLabel;
     private readonly Panel _dropPanel;
+    private readonly string _appName;
 
     private string _outputFolder = string.Empty;
     private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
 
-    public ZipperForm()
+    public ZipperForm(string appName)
     {
-        Text = "Simple File Zipper";
+        _appName = appName;
+        Text = _appName;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(760, 540);
-        Size = new Size(900, 640);
+        MinimumSize = new Size(520, 420);
+        Size = new Size(640, 500);
 
         _configStore = new AppConfigStore();
 
         var headerLabel = new Label
         {
-            Text = "Simple File Zipper",
+            Text = _appName,
             AutoSize = true,
             Font = new Font(Font.FontFamily, 18, FontStyle.Bold),
             Margin = new Padding(0, 0, 0, 4)
@@ -45,7 +52,7 @@ internal sealed class ZipperForm : Form
 
         var instructionsLabel = new Label
         {
-            Text = "1) Drop files into the area below.  2) Click 'Begin Zip'.  3) Your zip is saved to the output folder.",
+            Text = "1) Drop files below (including from iTunes).  2) Click 'Begin Zip'.  3) Files are split into Grid User and Checkin ZIPs.",
             AutoSize = true,
             Font = new Font(Font.FontFamily, 10, FontStyle.Regular),
             Margin = new Padding(0, 0, 0, 12)
@@ -90,7 +97,7 @@ internal sealed class ZipperForm : Form
         {
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = Color.White,
-            Height = 180,
+            Height = 130,
             Dock = DockStyle.Top,
             AllowDrop = true,
             Margin = new Padding(0, 0, 0, 12)
@@ -194,7 +201,9 @@ internal sealed class ZipperForm : Form
 
     private void DropPanelOnDragEnter(object? sender, DragEventArgs e)
     {
-        if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+        if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+            || e.Data?.GetDataPresent(DataFormats.UnicodeText) == true
+            || e.Data?.GetDataPresent(DataFormats.Text) == true)
         {
             e.Effect = DragDropEffects.Copy;
             _dropPanel.BackColor = Color.FromArgb(224, 242, 255);
@@ -208,7 +217,8 @@ internal sealed class ZipperForm : Form
     {
         _dropPanel.BackColor = Color.White;
 
-        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] droppedItems || droppedItems.Length == 0)
+        var droppedItems = CollectDroppedFiles(e.Data);
+        if (droppedItems.Count == 0)
         {
             SetStatus("No files were dropped.", isError: true);
             return;
@@ -313,27 +323,114 @@ internal sealed class ZipperForm : Form
             return;
         }
 
-        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-        var zipPath = Path.Combine(_outputFolder, $"files-{timestamp}.zip");
-
         try
         {
-            using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-            var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var existingFiles = _selectedFiles.Where(File.Exists).ToList();
+            var gridFiles = existingFiles
+                .Where(file => string.Equals(Path.GetExtension(file), ".grid3user", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var checkinFiles = existingFiles
+                .Where(file => !string.Equals(Path.GetExtension(file), ".grid3user", StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-            foreach (var file in _selectedFiles.Where(File.Exists))
+            var createdZipPaths = new List<string>();
+
+            if (gridFiles.Count > 0)
             {
-                var baseName = Path.GetFileName(file);
-                var entryName = BuildUniqueEntryName(baseName, usedEntryNames);
-                archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
+                var gridZipPath = Path.Combine(_outputFolder, GridUserZipName);
+                CreateZipFromFiles(gridZipPath, gridFiles);
+                createdZipPaths.Add(gridZipPath);
             }
 
-            SetStatus($"Zip created: {zipPath}", isError: false);
-            MessageBox.Show(this, $"Zip complete!\n\nSaved to:\n{zipPath}", "Zip Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (checkinFiles.Count > 0)
+            {
+                var checkinZipPath = Path.Combine(_outputFolder, CheckinZipName);
+                CreateZipFromFiles(checkinZipPath, checkinFiles);
+                createdZipPaths.Add(checkinZipPath);
+            }
+
+            if (createdZipPaths.Count == 0)
+            {
+                SetStatus("No valid files were found to zip.", isError: true);
+                return;
+            }
+
+            SetStatus($"Created {createdZipPaths.Count} ZIP file(s).", isError: false);
+            var zipList = string.Join("\n", createdZipPaths);
+            MessageBox.Show(this, $"Zip complete!\n\nSaved to:\n{zipList}", "Zip Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
             SetStatus($"Zip failed: {ex.Message}", isError: true);
+        }
+    }
+
+    private static IReadOnlyList<string> CollectDroppedFiles(IDataObject? dataObject)
+    {
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (dataObject is null)
+        {
+            return files.ToList();
+        }
+
+        if (dataObject.GetData(DataFormats.FileDrop) is string[] fileDropPaths)
+        {
+            foreach (var path in fileDropPaths)
+            {
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    files.Add(path.Trim());
+                }
+            }
+        }
+
+        AddPathsFromText(dataObject.GetData(DataFormats.UnicodeText) as string, files);
+        AddPathsFromText(dataObject.GetData(DataFormats.Text) as string, files);
+
+        return files.ToList();
+    }
+
+    private static void AddPathsFromText(string? textData, ISet<string> files)
+    {
+        if (string.IsNullOrWhiteSpace(textData))
+        {
+            return;
+        }
+
+        var lines = textData
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim().Trim('"'));
+
+        foreach (var line in lines)
+        {
+            if (Uri.TryCreate(line, UriKind.Absolute, out var uri) && uri.IsFile)
+            {
+                files.Add(uri.LocalPath);
+                continue;
+            }
+
+            if (Path.IsPathRooted(line))
+            {
+                files.Add(line);
+            }
+        }
+    }
+
+    private static void CreateZipFromFiles(string zipPath, IEnumerable<string> files)
+    {
+        if (File.Exists(zipPath))
+        {
+            File.Delete(zipPath);
+        }
+
+        using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+        var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in files)
+        {
+            var baseName = Path.GetFileName(file);
+            var entryName = BuildUniqueEntryName(baseName, usedEntryNames);
+            archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
         }
     }
 
@@ -377,7 +474,7 @@ internal sealed class AppConfigStore
     {
         var appDataRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "SimpleFileZipper");
+            "SmartboxZipperSidekick");
 
         Directory.CreateDirectory(appDataRoot);
         _configPath = Path.Combine(appDataRoot, "config.json");
