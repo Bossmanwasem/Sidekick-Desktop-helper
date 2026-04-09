@@ -21,6 +21,8 @@ SIDEKICK_ORANGE = "#003366"
 SIDEKICK_MUTED = "#d5e9ff"
 SIDEKICK_INPUT_BG = "#2a2a3a"
 SIDEKICK_BORDER = "#81cfff"
+STATUS_CONNECTED = "#31c553"
+STATUS_DISCONNECTED = "#d44a4a"
 
 
 @dataclass
@@ -70,13 +72,14 @@ class SidekickDesktopApp:
         self.drop_folder = config.drop_folder if config else ""
         self.final_folder = config.final_folder if config else ""
 
-        self.drop_folder_var = tk.StringVar(value=self.drop_folder or "Not connected")
-        self.final_folder_var = tk.StringVar(value=self.final_folder or "Not connected")
         self.file_count_var = tk.StringVar(value="Files ready to zip: 0")
         self.zip_status_var = tk.StringVar(value="")
+        self.drop_indicator_canvas: tk.Canvas | None = None
+        self.final_indicator_canvas: tk.Canvas | None = None
 
         self._apply_theme()
         self._build_ui()
+        self._refresh_connection_indicators()
         self.refresh_file_count()
 
     def _apply_theme(self) -> None:
@@ -133,14 +136,14 @@ class SidekickDesktopApp:
         self._build_folder_row(
             parent=root_frame,
             label="Drop folder",
-            value_var=self.drop_folder_var,
             browse_command=self.select_drop_folder,
+            indicator_name="drop",
         )
         self._build_folder_row(
             parent=root_frame,
             label="Final folder",
-            value_var=self.final_folder_var,
             browse_command=self.select_final_folder,
+            indicator_name="final",
         )
 
         info_box = ttk.Frame(root_frame, style="Root.TFrame")
@@ -153,18 +156,45 @@ class SidekickDesktopApp:
         ttk.Button(actions, text="Zip & Move Files", style="Primary.TButton", command=self.zip_and_move_files).pack(side=tk.LEFT)
         ttk.Label(actions, textvariable=self.zip_status_var, style="Field.TLabel").pack(side=tk.LEFT, padx=(12, 0))
 
-    def _build_folder_row(self, parent: ttk.Frame, label: str, value_var: tk.StringVar, browse_command) -> None:
+    def _build_folder_row(self, parent: ttk.Frame, label: str, browse_command, indicator_name: str) -> None:
         row = ttk.Frame(parent, style="Root.TFrame")
         row.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(row, text=f"{label}:", style="Field.TLabel", width=12).pack(side=tk.LEFT)
-        ttk.Label(row, textvariable=value_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 8))
+        indicator_canvas = tk.Canvas(
+            row,
+            width=14,
+            height=14,
+            bg=SIDEKICK_BG,
+            highlightthickness=0,
+            bd=0,
+        )
+        indicator_canvas.create_oval(2, 2, 12, 12, fill=STATUS_DISCONNECTED, outline=STATUS_DISCONNECTED)
+        indicator_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 8))
+        if indicator_name == "drop":
+            self.drop_indicator_canvas = indicator_canvas
+        elif indicator_name == "final":
+            self.final_indicator_canvas = indicator_canvas
         ttk.Button(row, text="Connect", style="Secondary.TButton", command=browse_command).pack(side=tk.RIGHT)
+
+    @staticmethod
+    def _is_connected(path: str) -> bool:
+        return bool(path) and Path(path).is_dir()
+
+    def _set_indicator_color(self, indicator_canvas: tk.Canvas | None, is_connected: bool) -> None:
+        if indicator_canvas is None:
+            return
+        color = STATUS_CONNECTED if is_connected else STATUS_DISCONNECTED
+        indicator_canvas.itemconfig(1, fill=color, outline=color)
+
+    def _refresh_connection_indicators(self) -> None:
+        self._set_indicator_color(self.drop_indicator_canvas, self._is_connected(self.drop_folder))
+        self._set_indicator_color(self.final_indicator_canvas, self._is_connected(self.final_folder))
 
     def select_drop_folder(self) -> None:
         selected = filedialog.askdirectory(parent=self.root, title="Select Drop folder", initialdir=self.drop_folder or str(Path.home()))
         if selected:
             self.drop_folder = selected
-            self.drop_folder_var.set(selected)
+            self._refresh_connection_indicators()
             self._save_config()
             self.refresh_file_count()
 
@@ -172,7 +202,7 @@ class SidekickDesktopApp:
         selected = filedialog.askdirectory(parent=self.root, title="Select Final folder", initialdir=self.final_folder or str(Path.home()))
         if selected:
             self.final_folder = selected
-            self.final_folder_var.set(selected)
+            self._refresh_connection_indicators()
             self._save_config()
 
     def _save_config(self) -> None:
