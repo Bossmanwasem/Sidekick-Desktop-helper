@@ -300,7 +300,8 @@ class ZipperApp:
 
     def set_status(self, message: str, is_error: bool) -> None:
         self.status_var.set(message)
-        self.status_label.configure(style="StatusError.TLabel" if is_error else "StatusOk.TLabel")
+        if hasattr(self, "status_label"):
+            self.status_label.configure(style="StatusError.TLabel" if is_error else "StatusOk.TLabel")
 
     def refresh_files(self) -> None:
         self.files_list.delete(0, tk.END)
