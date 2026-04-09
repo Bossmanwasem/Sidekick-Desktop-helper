@@ -8,6 +8,10 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from zipfile import ZipFile, ZIP_DEFLATED
 
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
 APP_NAME = "Smartbox Zipper Sidekick"
 CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "SmartboxZipperSidekick"
 CONFIG_PATH = CONFIG_DIR / "config.json"
@@ -63,9 +67,13 @@ class ZipperApp:
         self.status_var = tk.StringVar(value="Ready")
         self.folder_var = tk.StringVar(value="Not set")
         self.icon_image: tk.PhotoImage | None = None
+        self._drop_backend = "none"
+        self._original_wndproc = None
+        self._drop_wndproc = None
 
         self._apply_theme()
         self._build_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(10, lambda: self.prompt_for_output_folder(force_prompt=False))
 
     @staticmethod
@@ -170,12 +178,125 @@ class ZipperApp:
             highlightbackground="#b9d7ea",
         )
         self.files_list.pack(fill=tk.BOTH, expand=True)
+        self._init_drag_and_drop()
 
         bottom_row = ttk.Frame(root_frame, style="Root.TFrame")
         bottom_row.pack(fill=tk.X, pady=(12, 0))
         ttk.Button(bottom_row, text="Begin Zip", style="Accent.TButton", command=self.begin_zip).pack(side=tk.LEFT)
         self.status_label = ttk.Label(bottom_row, textvariable=self.status_var, style="StatusOk.TLabel")
         self.status_label.pack(side=tk.LEFT, padx=(12, 0))
+
+    def _init_drag_and_drop(self) -> None:
+        """
+        Enable file drop support.
+
+        We intentionally use a native Windows implementation (WM_DROPFILES)
+        so this remains dependency-free and works with sources like iTunes.
+        """
+        if sys.platform != "win32":
+            self.set_status("Drag/drop is available on Windows builds.", is_error=False)
+            return
+
+        try:
+            self._enable_windows_drop_target()
+            self._drop_backend = "windows-native"
+            self.set_status("Drag/drop ready.", is_error=False)
+        except Exception:
+            self._drop_backend = "none"
+            self.set_status("Drag/drop unavailable. Use Add Files.", is_error=True)
+
+    def _enable_windows_drop_target(self) -> None:
+        user32 = ctypes.windll.user32
+        shell32 = ctypes.windll.shell32
+
+        WM_DROPFILES = 0x0233
+        GWL_WNDPROC = -4
+        MAX_PATH_CHARS = 32768
+        LRESULT = wintypes.LPARAM
+        WNDPROC = ctypes.WINFUNCTYPE(
+            LRESULT,
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        )
+
+        if hasattr(user32, "SetWindowLongPtrW"):
+            set_window_long = user32.SetWindowLongPtrW
+            set_window_long.restype = wintypes.LPARAM
+        else:
+            set_window_long = user32.SetWindowLongW
+            set_window_long.restype = wintypes.LPARAM
+
+        set_window_long.argtypes = (wintypes.HWND, ctypes.c_int, wintypes.LPARAM)
+
+        call_window_proc = user32.CallWindowProcW
+        call_window_proc.restype = wintypes.LPARAM
+        call_window_proc.argtypes = (
+            wintypes.LPARAM,
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        )
+
+        hwnd = self.root.winfo_id()
+        shell32.DragAcceptFiles(hwnd, True)
+
+        def wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_DROPFILES:
+                dropped_paths = self._extract_windows_drop_paths(wparam, shell32, MAX_PATH_CHARS)
+                self.root.after(0, lambda: self._handle_dropped_files(dropped_paths))
+                return 0
+
+            return call_window_proc(self._original_wndproc, hwnd, msg, wparam, lparam)
+
+        self._drop_wndproc = WNDPROC(wndproc)
+        self._original_wndproc = set_window_long(
+            hwnd,
+            GWL_WNDPROC,
+            ctypes.cast(self._drop_wndproc, ctypes.c_void_p).value,
+        )
+
+    @staticmethod
+    def _extract_windows_drop_paths(drop_handle: int, shell32, max_chars: int) -> list[str]:
+        file_count = shell32.DragQueryFileW(drop_handle, 0xFFFFFFFF, None, 0)
+        dropped_paths: list[str] = []
+
+        for index in range(file_count):
+            buffer = ctypes.create_unicode_buffer(max_chars)
+            shell32.DragQueryFileW(drop_handle, index, buffer, max_chars)
+            dropped_paths.append(buffer.value)
+
+        shell32.DragFinish(drop_handle)
+        return dropped_paths
+
+    def _handle_dropped_files(self, dropped_paths: list[str]) -> None:
+        if not dropped_paths:
+            self.set_status("No files were dropped.", is_error=True)
+            return
+
+        before_count = len(self.selected_files)
+        for file_path in dropped_paths:
+            path = Path(file_path)
+            if path.is_file():
+                self.selected_files.add(str(path))
+
+        self.refresh_files()
+        added_count = len(self.selected_files) - before_count
+        if added_count > 0:
+            self.set_status(f"Added {added_count} dropped file(s).", is_error=False)
+        else:
+            self.set_status("Dropped items contained no new files.", is_error=True)
+
+    def _on_close(self) -> None:
+        if sys.platform == "win32" and self._original_wndproc is not None:
+            user32 = ctypes.windll.user32
+            set_window_long = user32.SetWindowLongPtrW if hasattr(user32, "SetWindowLongPtrW") else user32.SetWindowLongW
+            set_window_long(self.root.winfo_id(), -4, self._original_wndproc)
+            self._original_wndproc = None
+            self._drop_wndproc = None
+        self.root.destroy()
 
     def set_status(self, message: str, is_error: bool) -> None:
         self.status_var.set(message)
