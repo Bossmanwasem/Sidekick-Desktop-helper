@@ -1,6 +1,5 @@
 param(
-    [string]$Configuration = "Release",
-    [string]$Runtime = "win-x64"
+    [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,21 +7,22 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
-Write-Host "Publishing application..." -ForegroundColor Cyan
-dotnet publish .\SidekickHelper.csproj -c $Configuration -r $Runtime --self-contained true -p:PublishSingleFile=true
+Write-Host "Building EXE with PyInstaller..." -ForegroundColor Cyan
 
-$iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
-if (-not $iscc) {
-    Write-Warning "Inno Setup compiler (ISCC.exe) was not found on PATH."
-    Write-Host "Install Inno Setup from https://jrsoftware.org/isinfo.php and re-run this script." -ForegroundColor Yellow
-    exit 0
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+    throw "Python was not found on PATH. Install Python 3.10+ and re-run this script."
 }
 
-Write-Host "Building installer with Inno Setup..." -ForegroundColor Cyan
-& $iscc.Source ".\installer\SimpleFileZipper.iss"
+$arguments = @("scripts/build-installer.py")
+if ($Clean) {
+    $arguments += "--clean"
+}
+
+& $pythonCmd.Source @arguments
 
 if ($LASTEXITCODE -ne 0) {
-    throw "Installer build failed with exit code $LASTEXITCODE."
+    throw "PyInstaller build failed with exit code $LASTEXITCODE."
 }
 
-Write-Host "Installer created in .\\dist" -ForegroundColor Green
+Write-Host "Executable created in .\\dist" -ForegroundColor Green

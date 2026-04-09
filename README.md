@@ -29,13 +29,12 @@ python app.py
   - `Current Grid User.zip`
   - `Current Checkin.zip`
 
-## Package and install as a desktop app (Inno Setup)
+## Package as a desktop app (PyInstaller)
 
 ### Prerequisites
 
 - Windows machine
 - Python 3.10+ installed
-- Inno Setup installed (`ISCC.exe` on your `PATH`): https://jrsoftware.org/isinfo.php
 
 ### 1) Install build dependencies
 
@@ -43,7 +42,7 @@ python app.py
 pip install -r requirements-build.txt
 ```
 
-### 2) Build the EXE and installer
+### 2) Build the EXE
 
 Run:
 
@@ -51,11 +50,9 @@ Run:
 python scripts/build-installer.py --clean
 ```
 
-This creates an installer in the `dist/` directory.
+This creates `dist/SmartboxVocabZipper.exe`.
 
-### 3) Install on Windows
+### 3) Run on Windows
 
-1. Open `dist/SmartboxVocabZipper-Setup-<version>.exe`.
-2. Follow the installer wizard.
-3. Optionally enable **Create a desktop shortcut**.
-4. Launch **Smartbox Vocab Zipper** from Start Menu or Desktop.
+1. Open `dist/SmartboxVocabZipper.exe`.
+2. (Optional) Create a shortcut manually for easier access.

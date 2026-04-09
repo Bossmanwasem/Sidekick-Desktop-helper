@@ -14,24 +14,17 @@ def run(command: list[str], cwd: Path) -> None:
         raise SystemExit(result.returncode)
 
 
-def find_iscc() -> str | None:
-    return shutil.which("ISCC.exe") or shutil.which("iscc")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the Python app installer.")
+    parser = argparse.ArgumentParser(description="Build the Python app executable with PyInstaller.")
     parser.add_argument("--clean", action="store_true", help="Clean build artifacts before building.")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
     icon_ico = repo_root / "assets" / "install-icon.ico"
     icon_png = repo_root / "assets" / "install-icon.png"
-    iscc = find_iscc()
-    if iscc is None:
-        raise SystemExit("Inno Setup compiler not found. Install Inno Setup and ensure ISCC.exe is on PATH.")
     if not icon_ico.exists() or not icon_png.exists():
         raise SystemExit(
-            "Missing icon assets. Add assets/install-icon.ico and assets/install-icon.png before running the installer build."
+            "Missing icon assets. Add assets/install-icon.ico and assets/install-icon.png before running the build."
         )
 
     if args.clean:
@@ -59,9 +52,7 @@ def main() -> None:
         cwd=repo_root,
     )
 
-    run([iscc, str(repo_root / "installer" / "SimpleFileZipper.iss")], cwd=repo_root)
-
-    print("Installer created in dist/")
+    print("Executable created in dist/")
 
 
 if __name__ == "__main__":
