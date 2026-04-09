@@ -7,8 +7,8 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from zipfile import ZIP_DEFLATED, ZipFile
 
-APP_NAME = "Trials Check-in Sidekick Desktop"
-CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "TrialsCheckinSidekick"
+APP_NAME = "Smartbox Vocab Zipper"
+CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "SmartboxVocabZipper"
 CONFIG_PATH = CONFIG_DIR / "config.json"
 GRID_USER_EXTENSION = ".grid3user"
 GRID_USER_ZIP_NAME = "Current Grid User.zip"

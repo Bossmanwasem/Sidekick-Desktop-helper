@@ -1,7 +1,7 @@
-#define AppName "Simple File Zipper"
+#define AppName "Smartbox Vocab Zipper"
 #define AppVersion "1.1.0"
 #define AppPublisher "Sidekick"
-#define AppExeName "SimpleFileZipper.exe"
+#define AppExeName "SmartboxVocabZipper.exe"
 #define AppId "{{D476B0F0-28D6-4BE8-89E9-56D2DA3EA62D}"
 
 [Setup]
@@ -9,11 +9,11 @@ AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\Simple File Zipper
-DefaultGroupName=Simple File Zipper
+DefaultDirName={autopf}\Smartbox Vocab Zipper
+DefaultGroupName=Smartbox Vocab Zipper
 AllowNoIcons=yes
 OutputDir=..\dist
-OutputBaseFilename=SimpleFileZipper-Setup-{#AppVersion}
+OutputBaseFilename=SmartboxVocabZipper-Setup-{#AppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -30,11 +30,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "..\dist\SimpleFileZipper.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\SmartboxVocabZipper.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Simple File Zipper"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\Simple File Zipper"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{group}\Smartbox Vocab Zipper"; Filename: "{app}\{#AppExeName}"
+Name: "{autodesktop}\Smartbox Vocab Zipper"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch Simple File Zipper"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch Smartbox Vocab Zipper"; Flags: nowait postinstall skipifsilent
