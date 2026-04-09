@@ -3,14 +3,16 @@ from __future__ import annotations
 import json
 import tkinter as tk
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from zipfile import ZipFile, ZIP_DEFLATED
 
-APP_NAME = "Simple File Zipper"
-CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "SimpleFileZipper"
+APP_NAME = "Smartbox Zipper Sidekick"
+CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "SmartboxZipperSidekick"
 CONFIG_PATH = CONFIG_DIR / "config.json"
+GRID_USER_EXTENSION = ".grid3user"
+GRID_USER_ZIP_NAME = "Current Grid User.zip"
+CHECKIN_ZIP_NAME = "Current Checkin.zip"
 
 
 @dataclass
@@ -46,8 +48,8 @@ class ZipperApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(APP_NAME)
-        self.root.minsize(760, 540)
-        self.root.geometry("900x640")
+        self.root.minsize(520, 420)
+        self.root.geometry("640x500")
 
         self.config_store = ConfigStore()
         self.output_folder = ""
@@ -66,7 +68,7 @@ class ZipperApp:
         ttk.Label(root_frame, text=APP_NAME, font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(
             root_frame,
-            text="1) Drop files below or use Add Files.  2) Click Begin Zip.  3) ZIP is saved to output folder.",
+            text="1) Drop files below (including from iTunes) or use Add Files.  2) Click Begin Zip.  3) Files are split into Grid User and Checkin ZIPs.",
             font=("Segoe UI", 10),
         ).pack(anchor="w", pady=(0, 12))
 
@@ -159,21 +161,40 @@ class ZipperApp:
             self.set_status("Add at least one file before clicking Begin Zip.", is_error=True)
             return
 
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        zip_path = Path(self.output_folder) / f"files-{timestamp}.zip"
-
         try:
-            with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as zip_file:
-                for file_path in sorted(self.selected_files, key=lambda p: p.lower()):
-                    path = Path(file_path)
-                    if path.is_file():
-                        zip_file.write(path, arcname=path.name)
+            existing_files = [Path(file_path) for file_path in sorted(self.selected_files, key=lambda p: p.lower()) if Path(file_path).is_file()]
+            grid_files = [path for path in existing_files if path.suffix.lower() == GRID_USER_EXTENSION]
+            checkin_files = [path for path in existing_files if path.suffix.lower() != GRID_USER_EXTENSION]
 
-            self.set_status(f"ZIP created: {zip_path}", is_error=False)
-            messagebox.showinfo(APP_NAME, f"Successfully created ZIP:\n{zip_path}")
+            created_paths: list[Path] = []
+            if grid_files:
+                grid_zip_path = Path(self.output_folder) / GRID_USER_ZIP_NAME
+                self._create_zip(grid_zip_path, grid_files)
+                created_paths.append(grid_zip_path)
+
+            if checkin_files:
+                checkin_zip_path = Path(self.output_folder) / CHECKIN_ZIP_NAME
+                self._create_zip(checkin_zip_path, checkin_files)
+                created_paths.append(checkin_zip_path)
+
+            if not created_paths:
+                self.set_status("No valid files were found to zip.", is_error=True)
+                return
+
+            path_list = "\n".join(str(path) for path in created_paths)
+            self.set_status(f"Created {len(created_paths)} ZIP file(s).", is_error=False)
+            messagebox.showinfo(APP_NAME, f"Successfully created ZIP file(s):\n{path_list}")
         except OSError as exc:
             self.set_status("Failed to create ZIP.", is_error=True)
             messagebox.showerror(APP_NAME, f"Unable to create ZIP file.\n\n{exc}")
+
+    @staticmethod
+    def _create_zip(zip_path: Path, files: list[Path]) -> None:
+        if zip_path.exists():
+            zip_path.unlink()
+        with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as zip_file:
+            for path in files:
+                zip_file.write(path, arcname=path.name)
 
 
 def main() -> None:
