@@ -112,8 +112,12 @@ internal sealed class ZipperForm : Form
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font(Font.FontFamily, 12, FontStyle.Bold),
             Text = "Drop files here",
-            ForeColor = Color.FromArgb(40, 40, 40)
+            ForeColor = Color.FromArgb(40, 40, 40),
+            AllowDrop = true
         };
+        dropLabel.DragEnter += DropPanelOnDragEnter;
+        dropLabel.DragDrop += DropPanelOnDragDrop;
+        dropLabel.DragLeave += (_, _) => _dropPanel.BackColor = Color.White;
         _dropPanel.Controls.Add(dropLabel);
 
         var selectedFilesLabel = new Label
