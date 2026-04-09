@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tkinter as tk
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -74,6 +75,7 @@ class SidekickDesktopApp:
         self.final_folder_var = tk.StringVar(value=self.final_folder or "Not connected")
         self.file_count_var = tk.StringVar(value="Files ready to zip: 0")
         self.status_var = tk.StringVar(value="Connect both folders to begin.")
+        self.progress_var = tk.DoubleVar(value=0.0)
 
         self._apply_theme()
         self._build_ui()
@@ -154,6 +156,15 @@ class SidekickDesktopApp:
         ttk.Button(actions, text="Zip & Move Files", style="Primary.TButton", command=self.zip_and_move_files).pack(side=tk.LEFT)
         ttk.Label(actions, textvariable=self.status_var, style="Status.TLabel").pack(side=tk.LEFT, padx=(12, 0))
 
+        self.progress_bar = ttk.Progressbar(
+            root_frame,
+            orient="horizontal",
+            mode="determinate",
+            maximum=100,
+            variable=self.progress_var,
+        )
+        self.progress_bar.pack(fill=tk.X, pady=(12, 0))
+
     def _build_folder_row(self, parent: ttk.Frame, label: str, value_var: tk.StringVar, browse_command) -> None:
         row = ttk.Frame(parent, style="Root.TFrame")
         row.pack(fill=tk.X, pady=(0, 10))
@@ -193,6 +204,7 @@ class SidekickDesktopApp:
         self.status_var.set("Ready." if file_count else "Drop folder is empty.")
 
     def zip_and_move_files(self) -> None:
+        self.progress_var.set(0)
         if not self.drop_folder or not Path(self.drop_folder).is_dir():
             messagebox.showerror(APP_NAME, "Please connect a valid Drop folder.")
             return
@@ -214,19 +226,29 @@ class SidekickDesktopApp:
 
         try:
             created_archives: list[Path] = []
+            processed_files = 0
+            total_files = len(files_to_process)
+
+            def report_progress(written_files: int) -> None:
+                progress = (written_files / total_files) * 100 if total_files else 0
+                self.progress_var.set(progress)
+                self.status_var.set(f"Zipping files... {written_files}/{total_files}")
+                self.root.update_idletasks()
+
             if grid_files:
                 grid_zip_path = final_path / GRID_USER_ZIP_NAME
-                self._create_zip(grid_zip_path, grid_files)
+                processed_files = self._create_zip(grid_zip_path, grid_files, processed_files, report_progress)
                 created_archives.append(grid_zip_path)
 
             if checkin_files:
                 checkin_zip_path = final_path / CHECKIN_ZIP_NAME
-                self._create_zip(checkin_zip_path, checkin_files)
+                processed_files = self._create_zip(checkin_zip_path, checkin_files, processed_files, report_progress)
                 created_archives.append(checkin_zip_path)
 
             for file_path in files_to_process:
                 file_path.unlink()
 
+            self.progress_var.set(100)
             self.refresh_file_count()
             archive_list = "\n".join(str(path) for path in created_archives)
             self.status_var.set("Done. Files zipped and moved.")
@@ -239,13 +261,22 @@ class SidekickDesktopApp:
             messagebox.showerror(APP_NAME, f"Unable to complete zipping.\n\n{exc}")
 
     @staticmethod
-    def _create_zip(zip_path: Path, files: list[Path]) -> None:
+    def _create_zip(
+        zip_path: Path,
+        files: list[Path],
+        processed_files: int,
+        progress_callback: Callable[[int], None],
+    ) -> int:
         if zip_path.exists():
             zip_path.unlink()
 
         with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as zip_file:
             for file_path in files:
                 zip_file.write(file_path, arcname=file_path.name)
+                processed_files += 1
+                progress_callback(processed_files)
+
+        return processed_files
 
 
 def main() -> None:
