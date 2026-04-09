@@ -21,6 +21,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#AppExeName}
 PrivilegesRequired=admin
+SetupIconFile=..\assets\install-icon.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

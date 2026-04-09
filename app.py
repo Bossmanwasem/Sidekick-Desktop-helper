@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,10 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 GRID_USER_EXTENSION = ".grid3user"
 GRID_USER_ZIP_NAME = "Current Grid User.zip"
 CHECKIN_ZIP_NAME = "Current Checkin.zip"
+SMARTBOXX_ORANGE = "#f7a000"
+SMARTBOXX_BLUE = "#24aae2"
+SMARTBOXX_NAVY = "#0f2b46"
+SMARTBOXX_BG = "#f6fbff"
 
 
 @dataclass
@@ -57,44 +62,118 @@ class ZipperApp:
 
         self.status_var = tk.StringVar(value="Ready")
         self.folder_var = tk.StringVar(value="Not set")
+        self.icon_image: tk.PhotoImage | None = None
 
+        self._apply_theme()
         self._build_ui()
         self.root.after(10, lambda: self.prompt_for_output_folder(force_prompt=False))
 
+    @staticmethod
+    def _resource_path(relative_path: str) -> Path:
+        bundle_root = getattr(sys, "_MEIPASS", None)
+        if bundle_root:
+            return Path(bundle_root) / relative_path
+        return Path(__file__).resolve().parent / relative_path
+
+    def _apply_theme(self) -> None:
+        self.root.configure(bg=SMARTBOXX_BG)
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure("Root.TFrame", background=SMARTBOXX_BG)
+        style.configure("TLabel", background=SMARTBOXX_BG, foreground=SMARTBOXX_NAVY, font=("Segoe UI", 10))
+        style.configure("Title.TLabel", background=SMARTBOXX_BG, foreground=SMARTBOXX_NAVY, font=("Segoe UI", 20, "bold"))
+        style.configure(
+            "Subtitle.TLabel",
+            background=SMARTBOXX_BG,
+            foreground="#35516a",
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Accent.TButton",
+            background=SMARTBOXX_ORANGE,
+            foreground="#1b1b1b",
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0,
+            padding=(12, 7),
+        )
+        style.map("Accent.TButton", background=[("active", "#ffb32e"), ("pressed", "#df8f00")])
+        style.configure(
+            "Secondary.TButton",
+            background=SMARTBOXX_BLUE,
+            foreground="#0b263f",
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0,
+            padding=(12, 7),
+        )
+        style.map("Secondary.TButton", background=[("active", "#55bbe8"), ("pressed", "#1798cc")])
+        style.configure("StatusOk.TLabel", background=SMARTBOXX_BG, foreground="#16638d", font=("Segoe UI", 10, "bold"))
+        style.configure("StatusError.TLabel", background=SMARTBOXX_BG, foreground="#a32626", font=("Segoe UI", 10, "bold"))
+
+        icon_path = self._resource_path("assets/install-icon.png")
+        if icon_path.exists():
+            self.icon_image = tk.PhotoImage(file=str(icon_path))
+            self.root.iconphoto(True, self.icon_image)
+
     def _build_ui(self) -> None:
-        root_frame = ttk.Frame(self.root, padding=18)
+        root_frame = ttk.Frame(self.root, padding=20, style="Root.TFrame")
         root_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(root_frame, text=APP_NAME, font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        header_row = ttk.Frame(root_frame, style="Root.TFrame")
+        header_row.pack(fill=tk.X, pady=(0, 6))
+        if self.icon_image is not None:
+            ttk.Label(header_row, image=self.icon_image, style="Root.TFrame").pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Label(header_row, text=APP_NAME, style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             root_frame,
             text="1) Drop files below (including from iTunes) or use Add Files.  2) Click Begin Zip.  3) Files are split into Grid User and Checkin ZIPs.",
-            font=("Segoe UI", 10),
-        ).pack(anchor="w", pady=(0, 12))
+            style="Subtitle.TLabel",
+        ).pack(anchor="w", pady=(0, 14))
 
-        folder_row = ttk.Frame(root_frame)
+        folder_row = ttk.Frame(root_frame, style="Root.TFrame")
         folder_row.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(folder_row, text="Output folder:", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
         ttk.Label(folder_row, textvariable=self.folder_var).pack(side=tk.LEFT, padx=(8, 8))
-        ttk.Button(folder_row, text="Change Folder", command=lambda: self.prompt_for_output_folder(True)).pack(side=tk.LEFT)
+        ttk.Button(
+            folder_row,
+            text="Change Folder",
+            style="Secondary.TButton",
+            command=lambda: self.prompt_for_output_folder(True),
+        ).pack(side=tk.LEFT)
 
-        drop_row = ttk.Frame(root_frame)
+        drop_row = ttk.Frame(root_frame, style="Root.TFrame")
         drop_row.pack(fill=tk.X)
-        ttk.Button(drop_row, text="Add Files", command=self.add_files).pack(side=tk.LEFT)
-        ttk.Button(drop_row, text="Clear Files", command=self.clear_selected_files).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(drop_row, text="Add Files", style="Secondary.TButton", command=self.add_files).pack(side=tk.LEFT)
+        ttk.Button(
+            drop_row,
+            text="Clear Files",
+            style="Secondary.TButton",
+            command=self.clear_selected_files,
+        ).pack(side=tk.LEFT, padx=(8, 0))
 
         ttk.Label(root_frame, text="Files to Zip", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(12, 4))
 
-        self.files_list = tk.Listbox(root_frame, font=("Segoe UI", 10))
+        self.files_list = tk.Listbox(
+            root_frame,
+            font=("Segoe UI", 10),
+            bg="#ffffff",
+            fg=SMARTBOXX_NAVY,
+            selectbackground=SMARTBOXX_BLUE,
+            selectforeground="#ffffff",
+            highlightthickness=1,
+            highlightcolor=SMARTBOXX_BLUE,
+            highlightbackground="#b9d7ea",
+        )
         self.files_list.pack(fill=tk.BOTH, expand=True)
 
-        bottom_row = ttk.Frame(root_frame)
+        bottom_row = ttk.Frame(root_frame, style="Root.TFrame")
         bottom_row.pack(fill=tk.X, pady=(12, 0))
-        ttk.Button(bottom_row, text="Begin Zip", command=self.begin_zip).pack(side=tk.LEFT)
-        ttk.Label(bottom_row, textvariable=self.status_var, foreground="#185818").pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Button(bottom_row, text="Begin Zip", style="Accent.TButton", command=self.begin_zip).pack(side=tk.LEFT)
+        self.status_label = ttk.Label(bottom_row, textvariable=self.status_var, style="StatusOk.TLabel")
+        self.status_label.pack(side=tk.LEFT, padx=(12, 0))
 
     def set_status(self, message: str, is_error: bool) -> None:
         self.status_var.set(message)
+        self.status_label.configure(style="StatusError.TLabel" if is_error else "StatusOk.TLabel")
 
     def refresh_files(self) -> None:
         self.files_list.delete(0, tk.END)
