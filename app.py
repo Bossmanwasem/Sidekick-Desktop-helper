@@ -240,6 +240,11 @@ class ZipperApp:
             wintypes.LPARAM,
         )
 
+        shell32.DragQueryFileW.restype = ctypes.c_uint
+        shell32.DragQueryFileW.argtypes = (wintypes.HANDLE, ctypes.c_uint, wintypes.LPWSTR, ctypes.c_uint)
+        shell32.DragFinish.restype = None
+        shell32.DragFinish.argtypes = (wintypes.HANDLE,)
+
         hwnd = self.root.winfo_id()
         shell32.DragAcceptFiles(hwnd, True)
 
@@ -260,15 +265,17 @@ class ZipperApp:
 
     @staticmethod
     def _extract_windows_drop_paths(drop_handle: int, shell32, max_chars: int) -> list[str]:
-        file_count = shell32.DragQueryFileW(drop_handle, 0xFFFFFFFF, None, 0)
+        handle = wintypes.HANDLE(drop_handle)
+        file_count = shell32.DragQueryFileW(handle, 0xFFFFFFFF, None, 0)
         dropped_paths: list[str] = []
 
-        for index in range(file_count):
-            buffer = ctypes.create_unicode_buffer(max_chars)
-            shell32.DragQueryFileW(drop_handle, index, buffer, max_chars)
-            dropped_paths.append(buffer.value)
-
-        shell32.DragFinish(drop_handle)
+        try:
+            for index in range(file_count):
+                buffer = ctypes.create_unicode_buffer(max_chars)
+                shell32.DragQueryFileW(handle, index, buffer, max_chars)
+                dropped_paths.append(buffer.value)
+        finally:
+            shell32.DragFinish(handle)
         return dropped_paths
 
     def _handle_dropped_files(self, dropped_paths: list[str]) -> None:
