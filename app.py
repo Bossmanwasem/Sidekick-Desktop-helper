@@ -73,7 +73,6 @@ class SidekickDesktopApp:
         self.drop_folder_var = tk.StringVar(value=self.drop_folder or "Not connected")
         self.final_folder_var = tk.StringVar(value=self.final_folder or "Not connected")
         self.file_count_var = tk.StringVar(value="Files ready to zip: 0")
-        self.status_var = tk.StringVar(value="Connect both folders to begin.")
 
         self._apply_theme()
         self._build_ui()
@@ -112,7 +111,6 @@ class SidekickDesktopApp:
         )
         style.map("Secondary.TButton", background=[("active", "#9ad8ff"), ("pressed", "#66bfff")])
 
-        style.configure("Status.TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_MUTED, font=("Segoe UI", 10, "bold"))
         style.configure(
             "TEntry",
             fieldbackground=SIDEKICK_INPUT_BG,
@@ -152,7 +150,6 @@ class SidekickDesktopApp:
         actions = ttk.Frame(root_frame, style="Root.TFrame")
         actions.pack(fill=tk.X)
         ttk.Button(actions, text="Zip & Move Files", style="Primary.TButton", command=self.zip_and_move_files).pack(side=tk.LEFT)
-        ttk.Label(actions, textvariable=self.status_var, style="Status.TLabel").pack(side=tk.LEFT, padx=(12, 0))
 
     def _build_folder_row(self, parent: ttk.Frame, label: str, value_var: tk.StringVar, browse_command) -> None:
         row = ttk.Frame(parent, style="Root.TFrame")
@@ -190,7 +187,6 @@ class SidekickDesktopApp:
     def refresh_file_count(self) -> None:
         file_count = len(self._drop_files())
         self.file_count_var.set(f"Files ready to zip: {file_count}")
-        self.status_var.set("Ready." if file_count else "Drop folder is empty.")
 
     def zip_and_move_files(self) -> None:
         if not self.drop_folder or not Path(self.drop_folder).is_dir():
@@ -214,8 +210,7 @@ class SidekickDesktopApp:
 
         try:
             created_archives: list[Path] = []
-            self.status_var.set("Zipping your vocab files please wait...")
-            self.root.update_idletasks()
+            messagebox.showinfo(APP_NAME, "Zipping is in progress. Please wait…")
 
             if grid_files:
                 grid_zip_path = final_path / GRID_USER_ZIP_NAME
@@ -232,13 +227,11 @@ class SidekickDesktopApp:
 
             self.refresh_file_count()
             archive_list = "\n".join(str(path) for path in created_archives)
-            self.status_var.set("Done. Files zipped and moved.")
             messagebox.showinfo(
                 APP_NAME,
                 f"Finished creating ZIP file(s):\n{archive_list}\n\nYou can now return to the CRM Sidekick Extension.",
             )
         except OSError as exc:
-            self.status_var.set("Failed to zip files.")
             messagebox.showerror(APP_NAME, f"Unable to complete zipping.\n\n{exc}")
 
     @staticmethod
