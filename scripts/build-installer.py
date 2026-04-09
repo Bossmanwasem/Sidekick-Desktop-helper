@@ -24,9 +24,15 @@ def main() -> None:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
+    icon_ico = repo_root / "assets" / "install-icon.ico"
+    icon_png = repo_root / "assets" / "install-icon.png"
     iscc = find_iscc()
     if iscc is None:
         raise SystemExit("Inno Setup compiler not found. Install Inno Setup and ensure ISCC.exe is on PATH.")
+    if not icon_ico.exists() or not icon_png.exists():
+        raise SystemExit(
+            "Missing icon assets. Add assets/install-icon.ico and assets/install-icon.png before running the installer build."
+        )
 
     if args.clean:
         for folder_name in ("build", "dist"):
@@ -44,6 +50,10 @@ def main() -> None:
             "--onefile",
             "--name",
             "SimpleFileZipper",
+            "--icon",
+            str(icon_ico),
+            "--add-data",
+            f"{icon_png};assets",
             "app.py",
         ],
         cwd=repo_root,

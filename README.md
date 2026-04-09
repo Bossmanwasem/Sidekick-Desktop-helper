@@ -6,6 +6,7 @@ A clean desktop app for zipping files quickly, built with Python.
 
 - On first startup, asks the user to choose an **output folder** for finished ZIP files.
 - Main screen provides quick file selection and supports drag/drop, including dragging files from iTunes.
+- App uses a Smartbox AAC inspired color theme and bundled install/app icon assets.
 - User clicks **Begin Zip** to create one or two ZIP files:
   - `Current Grid User.zip` for `.grid3user` files.
   - `Current Checkin.zip` for all other files.
@@ -60,6 +61,8 @@ From the repo root:
 ```bash
 python scripts/build-installer.py
 ```
+
+The build script expects local icon assets at `assets/install-icon.ico` (Windows executable + setup icon) and `assets/install-icon.png` (in-app window branding). See `assets/README.md` for details.
 
 Installer output:
 
