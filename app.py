@@ -109,8 +109,14 @@ class ZipperApp:
         style.configure("StatusOk.TLabel", background=SMARTBOXX_BG, foreground="#16638d", font=("Segoe UI", 10, "bold"))
         style.configure("StatusError.TLabel", background=SMARTBOXX_BG, foreground="#a32626", font=("Segoe UI", 10, "bold"))
 
-        icon_path = self._resource_path("assets/install-icon.png")
-        if icon_path.exists():
+        icon_path = None
+        for candidate in ("assets/Eye-Gaze.png", "assets/install-icon.png"):
+            resolved_path = self._resource_path(candidate)
+            if resolved_path.exists():
+                icon_path = resolved_path
+                break
+
+        if icon_path is not None:
             self.icon_image = tk.PhotoImage(file=str(icon_path))
             self.root.iconphoto(True, self.icon_image)
 
