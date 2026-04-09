@@ -49,7 +49,7 @@ def main() -> None:
             "--windowed",
             "--onefile",
             "--name",
-            "SimpleFileZipper",
+            "SmartboxVocabZipper",
             "--icon",
             str(icon_ico),
             "--add-data",
