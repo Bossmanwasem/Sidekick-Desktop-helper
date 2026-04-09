@@ -37,8 +37,11 @@ internal sealed class ZipperForm : Form
         _appName = appName;
         Text = _appName;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(520, 420);
-        Size = new Size(640, 500);
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MinimizeBox = true;
+        MaximizeBox = true;
+        MinimumSize = new Size(320, 280);
+        Size = new Size(760, 560);
 
         _configStore = new AppConfigStore();
 
@@ -173,7 +176,9 @@ internal sealed class ZipperForm : Form
 
         var contentLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 1,
             RowCount = 8,
             Padding = new Padding(18),
@@ -198,7 +203,15 @@ internal sealed class ZipperForm : Form
         contentLayout.Controls.Add(buttonRow, 0, 6);
         contentLayout.Controls.Add(_statusLabel, 0, 7);
 
-        Controls.Add(contentLayout);
+        var scrollContainer = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            BackColor = Color.FromArgb(247, 249, 252)
+        };
+        scrollContainer.Controls.Add(contentLayout);
+
+        Controls.Add(scrollContainer);
 
         Load += (_, _) => PromptForOutputFolder(forcePrompt: false);
     }
