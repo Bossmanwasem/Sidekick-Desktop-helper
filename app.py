@@ -14,10 +14,13 @@ GRID_USER_EXTENSION = ".grid3user"
 GRID_USER_ZIP_NAME = "Current Grid User.zip"
 CHECKIN_ZIP_NAME = "Current Checkin.zip"
 
-SIDEKICK_BG = "#f6fbff"
-SIDEKICK_NAVY = "#0f2b46"
-SIDEKICK_BLUE = "#24aae2"
-SIDEKICK_ORANGE = "#f7a000"
+SIDEKICK_BG = "#121212"
+SIDEKICK_NAVY = "#e0e0e0"
+SIDEKICK_BLUE = "#81cfff"
+SIDEKICK_ORANGE = "#003366"
+SIDEKICK_MUTED = "#d5e9ff"
+SIDEKICK_INPUT_BG = "#2a2a3a"
+SIDEKICK_BORDER = "#81cfff"
 
 
 @dataclass
@@ -84,30 +87,38 @@ class SidekickDesktopApp:
         style.configure("Root.TFrame", background=SIDEKICK_BG)
         style.configure("TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_NAVY, font=("Segoe UI", 10))
         style.configure("Title.TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_NAVY, font=("Segoe UI", 19, "bold"))
-        style.configure("Subtitle.TLabel", background=SIDEKICK_BG, foreground="#35516a", font=("Segoe UI", 10))
+        style.configure("Subtitle.TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_MUTED, font=("Segoe UI", 10))
         style.configure("Field.TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_NAVY, font=("Segoe UI", 10, "bold"))
 
         style.configure(
             "Primary.TButton",
             background=SIDEKICK_ORANGE,
-            foreground="#1b1b1b",
+            foreground="#e0e0e0",
             font=("Segoe UI", 10, "bold"),
-            borderwidth=0,
+            bordercolor=SIDEKICK_BORDER,
+            borderwidth=1,
             padding=(12, 7),
         )
-        style.map("Primary.TButton", background=[("active", "#ffb32e"), ("pressed", "#df8f00")])
+        style.map("Primary.TButton", background=[("active", "#005599"), ("pressed", "#002a55")])
 
         style.configure(
             "Secondary.TButton",
             background=SIDEKICK_BLUE,
-            foreground="#0b263f",
+            foreground="#121212",
             font=("Segoe UI", 10, "bold"),
-            borderwidth=0,
+            bordercolor=SIDEKICK_BORDER,
+            borderwidth=1,
             padding=(12, 7),
         )
-        style.map("Secondary.TButton", background=[("active", "#55bbe8"), ("pressed", "#1798cc")])
+        style.map("Secondary.TButton", background=[("active", "#9ad8ff"), ("pressed", "#66bfff")])
 
-        style.configure("Status.TLabel", background=SIDEKICK_BG, foreground="#16638d", font=("Segoe UI", 10, "bold"))
+        style.configure("Status.TLabel", background=SIDEKICK_BG, foreground=SIDEKICK_MUTED, font=("Segoe UI", 10, "bold"))
+        style.configure(
+            "TEntry",
+            fieldbackground=SIDEKICK_INPUT_BG,
+            foreground=SIDEKICK_NAVY,
+            bordercolor=SIDEKICK_BORDER,
+        )
 
     def _build_ui(self) -> None:
         root_frame = ttk.Frame(self.root, padding=20, style="Root.TFrame")
